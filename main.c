@@ -39,6 +39,13 @@ typedef struct Gl_State {
     Texture empty_texture;
 } Gl_State;
 
+typedef struct {
+    Texture tex;
+    uint32_t tile_dim;
+    uint32_t h_count;
+    uint32_t v_count;
+} Ascii_Atlas;
+
 static Gl_State g_gl_state;
 static char gl_error_buffer[ONE_MB];
 static Window_State g_window_state;
@@ -67,6 +74,7 @@ void draw_texture(Rect dest, Texture texture, Rect src, vec4 color);
 void draw_texture_scaled(vec2 pos, Texture texture, float scale);
 void draw_texture_scaled_tinted(vec2 pos, Texture texture, float scale, vec4 color);
 void draw_quad(Rect quad, vec4 color);
+void draw_ascii_tile(vec2 pos, char glyph, vec4 col, Ascii_Atlas atlas);
 
 int main() {
     if (!glfwInit()) {
@@ -110,6 +118,11 @@ int main() {
     set_ortho_projection(g_window_state.w, g_window_state.h);
 
     Texture claesz = load_texture("res/claesz.png");
+    Ascii_Atlas curses_atlas = {0};
+    curses_atlas.tex = load_texture("res/curses.png");
+    curses_atlas.tile_dim = 24;
+    curses_atlas.h_count = curses_atlas.tex.w / curses_atlas.tile_dim;
+    curses_atlas.v_count = curses_atlas.tex.h / curses_atlas.tile_dim;
 
     trace_log("Entering main loop");
     while (!glfwWindowShouldClose(g_window_state.glfw_window)) {
@@ -121,6 +134,15 @@ int main() {
             g_window_state.h * 0.5f - claesz.h * bg_scale * 0.5f
         };
         draw_texture_scaled_tinted(bg_pos, claesz, bg_scale, (vec4){0.22f, 0.2f, 0.2f, 0.5f});
+
+        draw_texture_scaled((vec2){100.0f, 100.0f}, curses_atlas.tex, 1.0f);
+
+        for (int y = 0; y < 50; y++)
+            for (int x = 0; x < 50; x++)
+                draw_ascii_tile((vec2){(float)x * curses_atlas.tile_dim, (float)y * curses_atlas.tile_dim},
+                                (char)((x + y * curses_atlas.h_count) % 128),
+                                (vec4){1.0f, 0.0f, 1.0f, 1.0f},
+                                curses_atlas);
 
         glfwSwapBuffers(g_window_state.glfw_window);
         glfwPollEvents();
@@ -456,4 +478,20 @@ void draw_texture_scaled_tinted(vec2 pos, Texture texture, float scale, vec4 col
 
 void draw_quad(Rect quad, vec4 color) {
     draw_texture(quad, g_gl_state.empty_texture, (Rect){0}, color);
+}
+
+void draw_ascii_tile(vec2 pos, char glyph, vec4 col, Ascii_Atlas atlas) {
+    /* uint32_t h_count = atlas.tex.w / atlas.tile_dim; */
+
+    uint32_t x = (unsigned)glyph % atlas.h_count;
+    uint32_t y = (unsigned)glyph / atlas.h_count;
+
+    float x_min = (float)(x * atlas.tile_dim);
+    float y_min = (float)(y * atlas.tile_dim);
+    float t_d = (float)atlas.tile_dim;
+
+    draw_texture((Rect){pos[0], pos[1], t_d, t_d},
+                 atlas.tex,
+                 (Rect){x_min, y_min, t_d, t_d},
+                 col);
 }
